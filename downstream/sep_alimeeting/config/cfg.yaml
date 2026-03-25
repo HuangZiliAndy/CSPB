@@ -1,0 +1,51 @@
+runner:
+  total_steps: 100000
+  gradient_clipping: 1.0
+  gradient_accumulate_steps: 1
+
+  log_step: 200
+  eval_step: 2000
+  save_step: 2000
+  max_keep: 1
+  eval_dataloaders:
+    - dev
+  evaluate_ratio: 1.0
+
+optimizer:
+  name: AdamW
+  lr: 1.e-3
+
+downstream_expert:
+  datarc:
+    num_speakers: 2
+    rate: 16000
+    src_cond: 'wav'
+    tgt_conds: 's1,s2'
+    channel: 0
+    mch: False
+    n_fft: 512
+    hop_length: 160
+    win_length: 400
+    chunk_size: 4.0
+    log1p: True
+    concatenate: True
+    ref_channel: 0
+
+  loaderrc:
+    num_workers: 16
+    train_batchsize: 32
+    eval_batchsize: 1
+    train_dir: /export/c02/hzili1/datasets/s3prl_csp/downstream/sep_alimeeting/2spk_reverb_diffuse/MDM/Train
+    dev_dir: /export/c02/hzili1/datasets/s3prl_csp/downstream/sep_alimeeting/2spk_reverb_diffuse/MDM/Eval
+    test_dir: /export/c02/hzili1/datasets/s3prl_csp/downstream/sep_alimeeting/2spk_reverb_diffuse/MDM/Test
+  
+  modelrc: 
+    model: SepRNN
+    rnn: LSTM
+    rnn_layers: 3
+    hidden_size: 256
+    dropout: 0.1
+    non_linear: none
+    bidirectional: True
+    loss_type: L1
+    mask_type: AM
