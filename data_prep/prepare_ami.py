@@ -1,3 +1,31 @@
+"""
+prepare_ami.py — Prepare the AMI corpus for downstream ASR/diarization tasks.
+
+Generates recording-level Kaldi-style data directories for the train, dev, and
+test splits. RTTM and UEM files are sourced from the BUT AMI diarization setup
+repository; transcription segments must be added separately from an ESPnet recipe
+(see prepare_ami.sh for the awk post-processing step).
+
+Each output split directory (under {output_dir}/{split}/) contains:
+  wav.scp   — recording ID → wav path (or sox pipe for MDM8)
+  utt2spk   — recording ID → recording ID (recording-level placeholder)
+  rttm.scp  — recording ID → RTTM file path (from BUT repo)
+  reco2dur  — recording ID → duration in seconds
+  ref_rttm  — concatenated RTTM for all recordings (dev/test only)
+  uem       — concatenated UEM for all recordings (dev/test only)
+
+Supported conditions:
+  SDM1    — Single Distant Microphone ({meeting}.Array1-01.wav, channel 1).
+  IHM-MIX — Individual Headset Microphone mix ({meeting}.Mix-Headset.wav).
+  MDM8    — All 8 Array1 channels merged via a sox -M pipe.
+
+For meeting ES2010d the Array1-01 / Mix-Headset files are stereo; channel 1 is
+extracted with sox remix before writing to a local wav/ subdirectory.
+
+Usage:
+  python3 prepare_ami.py <BUT_repo_dir> <AMI_dir> <output_dir> [--cond SDM1|IHM-MIX|MDM8]
+"""
+
 import os
 import soundfile as sf
 import argparse
@@ -11,6 +39,18 @@ parser.add_argument('--cond', type=str, default='sdm', help='Condition of audio'
 args = parser.parse_args()
 
 def main():
+    """Generate recording-level Kaldi data directories for all AMI splits.
+
+    Iterates over RTTM files from the BUT repo to determine the meeting list for
+    each split. For each meeting:
+      - Resolves the audio path based on the requested condition.
+      - Handles ES2010d's anomalous stereo file by down-mixing to mono with sox.
+      - For MDM8 builds a multi-input sox pipe string covering all 8 channels.
+      - Writes wav.scp, utt2spk, rttm.scp, and reco2dur.
+
+    For dev and test splits, additionally concatenates all per-meeting RTTM files
+    into ref_rttm and all UEM files into uem (used for scoring with md-eval).
+    """
     for split in ["train", "dev", "test"]:
         output_dir = "{}/{}".format(args.output_dir, split)
         if not os.path.exists(output_dir):

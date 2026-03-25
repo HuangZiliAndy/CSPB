@@ -1,3 +1,26 @@
+"""
+prepare_alimeeting.py — Prepare the AliMeeting dataset for downstream ASR/diarization tasks.
+
+Reads the raw AliMeeting far-field corpus (multi-channel WAV files and TextGrid
+transcription/diarization files) and writes Kaldi-style data directories for the
+Eval, Test, and Train splits.
+
+Each output split directory (under {output_dir}/{cond}/{split}/) contains:
+  wav.scp   — recording ID → wav path (SDM1: extracted mono channel; MDM8: original)
+  utt2spk   — utterance ID → speaker ID
+  segments  — utterance ID, recording ID, start time, end time
+  text      — utterance ID → M2MeT-normalized transcript
+  reco2dur  — recording ID → duration in seconds
+  uem       — full-recording UEM spans
+  rttm.scp  — recording ID → per-recording RTTM file path
+
+TextGrid tiers encode one speaker per tier; tier names end in _SPK{N}.
+Speaker IDs are extracted by stripping the leading "SPK" prefix.
+
+Usage:
+  python3 prepare_alimeeting.py <AliMeeting_dir> <output_dir> [--cond SDM1|MDM8]
+"""
+
 import os
 import soundfile as sf
 import argparse
@@ -46,6 +69,19 @@ def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
     return text
 
 def main():
+    """Generate Kaldi-style data directories for all AliMeeting splits.
+
+    For each split (Eval, Test, Train):
+      - Reads far-field WAV files and corresponding TextGrid annotations.
+      - For SDM1 extracts channel 1 via sox remix; for MDM8 uses the original file.
+      - Iterates over TextGrid tiers (one per speaker) to produce per-interval
+        segments, writing RTTM entries as it goes.
+      - Writes wav.scp, utt2spk, segments, text (M2MeT normalized), reco2dur,
+        uem, and rttm.scp.
+
+    Utterance IDs follow the pattern: {meet_name}_{speaker}_{start_cs}_{end_cs}
+    where start_cs / end_cs are integer centiseconds (7-digit zero-padded).
+    """
     for split in ["Eval", "Test", "Train"]:
         split_dir="{}/{}_Ali/{}_Ali_far".format(args.AliMeeting_dir, split, split)
         assert os.path.exists("{}/textgrid_dir".format(split_dir)) and os.path.exists("{}/audio_dir".format(split_dir))

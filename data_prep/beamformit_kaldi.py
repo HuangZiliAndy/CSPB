@@ -1,3 +1,27 @@
+"""
+beamformit_kaldi.py — Run BeamformIt beamforming on a Kaldi wav.scp file.
+
+Reads a Kaldi-format wav.scp (recording_id  wav_path), extracts the requested
+channels from each multi-channel recording, runs BeamformIt to produce a single
+beamformed WAV, and writes the result to {output_dir}/wav/{recording_id}.wav.
+
+Supports shard-based parallelism for multi-node/multi-process use: the input
+list is divided into --split shards and this process handles shard --rank.
+Within a shard, recordings are processed in parallel using joblib.
+
+BeamformIt requires a minimum of 16000 samples; recordings shorter than this are
+zero-padded before beamforming and trimmed back to their original length afterward.
+
+Temporary per-channel WAV files are written to {output_dir}/tmp_{split}_{rank}/
+and removed after each recording is processed. BeamformIt side-car files
+(.del, .del2, .info, .weat) are also cleaned up.
+
+Usage:
+  python3 beamformit_kaldi.py <wav_scp_file> <output_dir> \\
+      --config_file <beamformit.cfg> \\
+      [--channels 0,1,2] [--split N] [--rank K] [--num_jobs J]
+"""
+
 import os
 import time
 import argparse
@@ -10,14 +34,23 @@ import numpy as np
 parser = argparse.ArgumentParser(description='Beamformit')
 parser.add_argument('wav_scp_file', type=str, help='wav scp file')
 parser.add_argument('output_dir', type=str, help='output directory')
-parser.add_argument('--config_file', type=str, help='config file')
-parser.add_argument('--split', type=int, default=1, help='split number')
-parser.add_argument('--rank', type=int, default=0, help='rank number')
-parser.add_argument('--num_jobs', type=int, default=8, help='number of jobs')
-parser.add_argument('--channels', type=str, help='')
+parser.add_argument('--config_file', type=str, help='BeamformIt configuration file')
+parser.add_argument('--split', type=int, default=1, help='Total number of shards (for distributed processing)')
+parser.add_argument('--rank', type=int, default=0, help='Index of the shard this process handles (0-indexed)')
+parser.add_argument('--num_jobs', type=int, default=8, help='Number of parallel jobs within this shard')
+parser.add_argument('--channels', type=str, default='', help='Comma-separated 0-indexed channel numbers to use (default: all channels)')
 args = parser.parse_args()
 
 def batch_process(lines, num_jobs):
+    """Process a list of wav.scp lines in parallel using joblib.
+
+    Args:
+        lines:    List of wav.scp lines (recording_id  wav_path).
+        num_jobs: Number of parallel workers.
+
+    Returns:
+        List of return codes from beamform() (all 0 on success).
+    """
     results = Parallel(n_jobs=num_jobs)(
         delayed(beamform)(line)
         for line in tqdm(lines)
@@ -25,6 +58,16 @@ def batch_process(lines, num_jobs):
     return results
 
 def pad_speech(speech_path, nsamples):
+    """Zero-pad a WAV file to at least nsamples frames, in-place.
+
+    BeamformIt requires a minimum number of samples to operate. Short recordings
+    are padded with trailing zeros before beamforming and trimmed back afterward
+    by trim_speech.
+
+    Args:
+        speech_path: Path to the WAV file to pad.
+        nsamples:    Target minimum number of samples.
+    """
     speech, sr = sf.read(speech_path)
     if len(speech) < nsamples:
         padded_speech = np.zeros((nsamples, ))
@@ -35,11 +78,34 @@ def pad_speech(speech_path, nsamples):
     return 0
 
 def trim_speech(speech_path, nsamples):
+    """Trim a WAV file to exactly nsamples frames, in-place.
+
+    Used after beamforming to restore the original length of recordings that
+    were padded by pad_speech.
+
+    Args:
+        speech_path: Path to the WAV file to trim.
+        nsamples:    Number of samples to retain from the start of the file.
+    """
     speech, sr = sf.read(speech_path)
     sf.write(speech_path, speech[:nsamples], sr)
     return 0
 
 def beamform(line):
+    """Beamform a single recording from a wav.scp line.
+
+    Steps:
+      1. Extract each requested channel as a separate mono WAV in the tmp dir
+         using sox remix (channels are 1-indexed in sox, so 0-indexed args are
+         incremented by 1).
+      2. Pad channels shorter than 16000 samples to satisfy BeamformIt's minimum.
+      3. Write a BeamformIt channel list file and invoke BeamformIt.
+      4. Trim the beamformed output back to the original sample count if padded.
+      5. Remove temporary channel files and BeamformIt side-car outputs.
+
+    Args:
+        line: A single wav.scp line: "recording_id  /path/to/multichannel.wav"
+    """
     line = line.strip('\n')
     line_split = line.split()
     uttname, wav_path = line_split[0], line_split[1]
@@ -80,6 +146,12 @@ def beamform(line):
     return 0
 
 def main():
+    """Entry point: read wav.scp, select this shard, and run beamforming in parallel.
+
+    Sharding: line i belongs to shard (i % split). This process handles lines
+    where (i % split) == rank, allowing N independent processes to cover all
+    recordings without overlap.
+    """
     print(args)
     if not os.path.exists(args.output_dir + '/tmp_{}_{}'.format(args.split, args.rank)):
         os.makedirs(args.output_dir + '/tmp_{}_{}'.format(args.split, args.rank))
