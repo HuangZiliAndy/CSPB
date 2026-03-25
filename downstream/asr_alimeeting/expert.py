@@ -13,7 +13,6 @@ from torch.distributed import is_initialized
 from torch.nn.utils.rnn import pad_sequence
 
 from .model import *
-from .model_v1 import *
 from .dataset import ASRDataset
 from .dictionary import Dictionary
 
@@ -183,12 +182,10 @@ class DownstreamExpert(nn.Module):
         ):
             pred_tokens = pred_tokens.split()
             target_tokens = target_tokens.split()
-            #print("pred_tokens", pred_tokens, "target_tokens", target_tokens)
             unit_error_sum += editdistance.eval(pred_tokens, target_tokens)
             unit_length_sum += len(target_tokens)
 
             word_error_sum += editdistance.eval(pred_words, target_words)
-            #print("pred_words", pred_words, "target_words", target_words)
             word_length_sum += len(target_words)
 
         uer, wer = 100.0, 100.0
@@ -284,38 +281,23 @@ class DownstreamExpert(nn.Module):
                 the loss to be optimized, should not be detached
                 a single scalar in torch.FloatTensor
         """
-        #print("len(features)", len(features))
-        #print([feat.size() for feat in features])
         log_probs, log_probs_len = self._get_log_probs(features)
-        #print("log_probs", log_probs.size())
-        #print("log_probs_len", log_probs_len)
         device = features[0].device
         labels = [l.int() for l in labels]
         labels_len = torch.tensor([len(label) for label in labels]).int().to(device=device)
-        #labels = [torch.IntTensor(l) for l in labels]
-        #labels_len = torch.IntTensor([len(label) for label in labels]).to(device=device)
-        #print("len(labels)", len(labels))
-        #print([label.size() for label in labels])
-        #print("labels_len", labels_len)
         labels = pad_sequence(
             labels,
             batch_first=True,
             padding_value=self.dictionary.pad(),
         ).to(device=device)
-        #print("labels", labels.size())
-        #print("log_probs", log_probs.size())        
-        #print("labels", labels.size())
-        #print("log_probs_len", log_probs_len)
-        #print("labels_len", labels_len)
 
         loss = self.objective(
-            log_probs.transpose(0, 1),  # (N, T, C) -> (T, N, C)
+            log_probs.transpose(0, 1),  # (B, T, C) -> (T, B, C) as required by CTCLoss
             labels,
             log_probs_len,
             labels_len,
         )
         records["loss"].append(loss.item())
-        #print("loss", loss)
 
         target_tokens_batch = []
         target_words_batch = []

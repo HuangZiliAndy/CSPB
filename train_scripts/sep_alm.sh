@@ -10,14 +10,15 @@
 
 source path.sh
 
-cache_dir=/export/c02/hzili1/tools/s3prl/s3prl/downloads
+# Directory where s3prl caches upstream model weights
+cache_dir=/path/to/s3prl/downloads
 
+# Upstream model. Use any s3prl-supported name (e.g. hubert_base, wavlm_base_plus).
+# To use a custom pre-trained upstream, uncomment and set:
+#   upstream=custom_local
+#   ckpt=/path/to/upstream/checkpoint
+#   and add:  -k ${ckpt}  to the run_downstream.py call below.
 upstream=wavlm_base_plus
-
-#upstream=unix_enc_custom_local
-#cfgname=cfg42
-#iter=200000
-#ckpt=/export/c02/hzili1/workspace/s3prl/s3prl/upstream/unix_enc_custom/exp/${cfgname}/checkpoint-${iter}
 
 lr=0.001
 gpus=1
@@ -25,6 +26,8 @@ port=25652
 #distributed="-m torch.distributed.launch --nproc_per_node ${gpus} --master_port ${port}"
 distributed=""
 
+# Recording condition. Controls which data directory and channel(s) to use.
+# Set cond to one of the values handled in the if-block below.
 cond=sdm1
 if [[ "$cond" == "mdm_0,2,4,6" ]]; then
     data="MDM"
@@ -45,12 +48,16 @@ elif [[ "$cond" == "sdm1" ]]; then
     data="MDM"
     channel="0"
 else
-    exit 1;
+    exit 1
 fi
 
 exp_dir="`pwd`/exp/sep_alm/${upstream}_${lr}_${cond}"
-train_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_alimeeting/2spk_reverb_diffuse/${data}/Train
-dev_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_alimeeting/2spk_reverb_diffuse/${data}/Eval
+
+# Root directory containing the separation data for AliMeeting.
+# Expected sub-directories: ${data}/Train, ${data}/Eval
+sep_data_dir=/path/to/downstream/sep_alimeeting
+train_dir=${sep_data_dir}/${data}/Train
+dev_dir=${sep_data_dir}/${data}/Eval
 
 echo $train_dir
 echo $dev_dir

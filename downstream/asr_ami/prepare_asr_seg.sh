@@ -1,75 +1,60 @@
 #!/bin/bash
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=6
-#SBATCH --mem=15360
-#SBATCH --job-name=prepare_asr_seg
-#SBATCH --time=1-00:00:00
-#SBATCH --exclude=c04,c02,octopod
+#
+# prepare_asr_seg.sh — Prepare per-utterance ASR data directories for the AMI corpus.
+#
+# This script runs in two stages for each recording condition:
+#
+#   Stage 1 — prepare_asr_seg.py
+#     Reads recording-level Kaldi data directories (produced by data_prep/prepare_ami.sh)
+#     and cuts each recording into individual utterance WAV files using the segments file.
+#     Writes wav.scp, text, utt2spk, reco2dur, and utt2num_samples for each split.
+#
+#   Stage 2 — filter_utt.py
+#     Filters utterances by duration (default: 0.1 s – 20.0 s) for the train and dev splits,
+#     writing *_filter directories that are used directly by the training script.
+#     test is left unfiltered.
+#
+# Prerequisites:
+#   Run data_prep/prepare_ami.sh first to populate the input Kaldi data directories.
+#
+# Usage:
+#   bash downstream/asr_ami/prepare_asr_seg.sh
 
-export PATH="/home/hzili1/anaconda3/envs/s3prl_csp/bin:$PATH"
+source path.sh
 
+# Root directory containing the Kaldi data directories produced by prepare_ami.sh
+# Expected structure: ${ami_data_dir}/${cond}/{train,dev,test}/
+ami_data_dir=/path/to/data/AMI
+
+# Root output directory for the segmented ASR data
+# Outputs will be written to: ${output_base_dir}/${cond}/{train,dev,test}/
+#                          and ${output_base_dir}/${cond}/{train_filter,dev_filter}/
+output_base_dir=/path/to/downstream/asr_ami
+
+# Utterances outside [min_dur, max_dur] are excluded by prepare_asr_seg.py.
+# The actual training duration filter is applied by filter_utt.py (stage 2).
+# Set wide bounds here to keep all segments and let filter_utt.py decide.
 min_dur=0.0
 max_dur=10000.0
 
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/SDM1
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_ami/SDM1
+# Recording conditions to process. Examples:
+#   SDM1 — Single Distant Microphone (mono)
+#   MDM  — Multiple Distant Microphones (multi-channel)
+for cond in SDM1 MDM; do
+  input_dir=${ami_data_dir}/${cond}
+  output_dir=${output_base_dir}/${cond}
 
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/MDM
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_ami/MDM
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/MDM_BF0,4
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_ami/MDM_BF0,4
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/MDM_BF0,2,4,6
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_ami/MDM_BF0,2,4,6
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/IHM
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_ami/IHM
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/sep_cfg0_SoudenMVDR_2CH
-#output_dir=/export/fs05/hzili1/datasets/s3prl_csp/downstream/asr_ami/sep_cfg0_SoudenMVDR_2CH
-#
-#for split in dev test train; do
-#  python downstream/asr_ami/prepare_asr_seg.py \
-#      ${input_dir}/${split} \
-#      ${output_dir}/${split} \
-#      --min_dur $min_dur --max_dur $max_dur
-#  python3 downstream/asr_ami/filter_utt.py ${output_dir}/${split} ${output_dir}/${split}_filter
-#done
-#
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/sep_cfg0_SoudenMVDR_4CH
-#output_dir=/export/fs05/hzili1/datasets/s3prl_csp/downstream/asr_ami/sep_cfg0_SoudenMVDR_4CH
-#
-#for split in dev test train; do
-#  python downstream/asr_ami/prepare_asr_seg.py \
-#      ${input_dir}/${split} \
-#      ${output_dir}/${split} \
-#      --min_dur $min_dur --max_dur $max_dur
-#  python3 downstream/asr_ami/filter_utt.py ${output_dir}/${split} ${output_dir}/${split}_filter
-#done
-#
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/sep_cfg0_SoudenMVDR_8CH
-#output_dir=/export/fs05/hzili1/datasets/s3prl_csp/downstream/asr_ami/sep_cfg0_SoudenMVDR_8CH
-#
-#for split in dev test train; do
-#  python downstream/asr_ami/prepare_asr_seg.py \
-#      ${input_dir}/${split} \
-#      ${output_dir}/${split} \
-#      --min_dur $min_dur --max_dur $max_dur
-#  python3 downstream/asr_ami/filter_utt.py ${output_dir}/${split} ${output_dir}/${split}_filter
-#done
-
-
-for cond in SDM1 MDM_BF0,3 MDM_BF0,2,4,6 MDM_BF; do
-  input_dir=/export/fs05/hzili1/datasets/s3prl_csp/data/Dipco/${cond}
-  output_dir=/export/fs05/hzili1/datasets/s3prl_csp/downstream/asr_dipco/${cond}
-  
-  for split in dev eval; do
-    python downstream/asr_ami/prepare_asr_seg.py \
+  # Stage 1: cut recordings into per-utterance WAV files
+  for split in train dev test; do
+    python3 downstream/asr_ami/prepare_asr_seg.py \
         ${input_dir}/${split} \
         ${output_dir}/${split} \
-        --min_dur $min_dur --max_dur $max_dur
-    python3 downstream/asr_ami/filter_utt.py ${output_dir}/${split} ${output_dir}/${split}_filter
+        --min_dur ${min_dur} \
+        --max_dur ${max_dur}
   done
+
+  # Stage 2: apply duration filtering to train and dev
+  # filter_utt.py defaults: --min_dur 0.1 --max_dur 20.0
+  python3 downstream/asr_ami/filter_utt.py ${output_dir}/train ${output_dir}/train_filter
+  python3 downstream/asr_ami/filter_utt.py ${output_dir}/dev   ${output_dir}/dev_filter
 done

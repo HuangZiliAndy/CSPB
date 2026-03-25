@@ -1,5 +1,18 @@
 # Copyright (c) Facebook, Inc. All Rights Reserved
 
+"""
+expert.py — DownstreamExpert for CTC-based ASR on the AMI corpus.
+
+Wires a pre-trained upstream model to an acoustic model (Transformer or LSTM)
+and a CTC objective. Supports optional KenLM beam-search decoding at eval time.
+
+The expert follows the s3prl downstream interface:
+  - get_dataloader(split)   — returns a DataLoader for train/dev/test
+  - forward(...)            — computes CTC loss and accumulates predictions
+  - log_records(...)        — computes WER/UER, logs to TensorBoard, saves checkpoints
+  - inference(...)          — greedy/beam decoding for standalone inference
+"""
+
 import os
 import math  # noqa
 import editdistance
@@ -13,19 +26,46 @@ from torch.distributed import is_initialized
 from torch.nn.utils.rnn import pad_sequence
 
 from .model import *
-from .model_v1 import *
 from .dataset import ASRDataset
 from .dictionary import Dictionary
 
 
 def token_to_word(text):
-    # Hard coding but it is only used here for now.
-    # Assumption that units are characters. Doesn't handle BPE.
+    """Convert a character-level token string to a space-separated word string.
+
+    Assumes character-level tokenization where:
+      - characters within a word are separated by spaces
+      - word boundaries are marked with "|"
+
+    Example: "H E L L O | W O R L D" -> "HELLO WORLD"
+
+    Args:
+        text: Space-separated character string with "|" as word separator.
+
+    Returns:
+        Word string with words separated by single spaces.
+    """
     # Inter-character separator is " " and inter-word separator is "|".
     return text.replace(" ", "").replace("|", " ").strip()
 
 
 def get_decoder(decoder_args_dict, dictionary):
+    """Instantiate a beam-search decoder from a config dict, or return None.
+
+    Currently supports:
+      - "kenlm": KenLM n-gram LM decoder via flashlight (W2lKenLMDecoder).
+      - Any other / missing decoder_type: greedy argmax decoding (returns None).
+
+    The unk_weight field may be a string expression (e.g. "-math.inf") and is
+    evaluated with eval() before being passed to the decoder.
+
+    Args:
+        decoder_args_dict: Dict of decoder arguments from the downstream config.
+        dictionary:        The task Dictionary (used for vocab size and token lookup).
+
+    Returns:
+        A decoder instance, or None for greedy decoding.
+    """
     decoder_args = Namespace(**decoder_args_dict)
 
     if decoder_args.decoder_type == "kenlm":
@@ -82,6 +122,8 @@ class DownstreamExpert(nn.Module):
         self.modelrc = downstream_expert["modelrc"]
         self.loaderrc = downstream_expert["loaderrc"]
         self.expdir = expdir
+        self.metric = downstream_expert.get("metric", "wer")
+        assert self.metric in ["uer", "wer"]
 
         self.dictionary = Dictionary.load(
             self.datarc.get("dict_path", str(Path(__file__).parent / "char.dict"))
@@ -181,12 +223,10 @@ class DownstreamExpert(nn.Module):
         ):
             pred_tokens = pred_tokens.split()
             target_tokens = target_tokens.split()
-            #print("pred_tokens", pred_tokens, "target_tokens", target_tokens)
             unit_error_sum += editdistance.eval(pred_tokens, target_tokens)
             unit_length_sum += len(target_tokens)
 
             word_error_sum += editdistance.eval(pred_words, target_words)
-            #print("pred_words", pred_words, "target_words", target_words)
             word_length_sum += len(target_words)
 
         uer, wer = 100.0, 100.0
@@ -217,7 +257,6 @@ class DownstreamExpert(nn.Module):
 
             if decoded is not None and "words" in decoded:
                 pred_words = decoded["words"]
-                raise
             else:
                 pred_words = token_to_word(pred_tokens).split()
 
@@ -227,6 +266,16 @@ class DownstreamExpert(nn.Module):
         return pred_tokens_batch, pred_words_batch
 
     def _get_log_probs(self, features):
+        """Project, encode, and log-softmax a batch of upstream feature sequences.
+
+        Args:
+            features: List of (T_i, upstream_dim) feature tensors on the target device.
+
+        Returns:
+            log_probs:     (B, T_max, vocab_size) log-probability tensor (CPU for decoding,
+                           same device as features for loss computation).
+            log_probs_len: (B,) IntTensor of valid frame counts (on CPU).
+        """
         device = features[0].device
         features_len = torch.IntTensor([len(feat) for feat in features])
         features = pad_sequence(features, batch_first=True).to(device=device)
@@ -236,6 +285,19 @@ class DownstreamExpert(nn.Module):
         return log_probs, log_probs_len
 
     def inference(self, features, filenames):
+        """Run standalone inference on a batch of feature sequences.
+
+        Decodes greedily (or with KenLM beam search if a decoder is configured)
+        and optionally writes results to inference.ark in the experiment directory.
+
+        Args:
+            features:  List of (T_i, upstream_dim) feature tensors.
+            filenames: List of utterance IDs corresponding to each feature sequence.
+                       Pass an empty list to skip writing inference.ark.
+
+        Returns:
+            List of decoded word-string hypotheses, one per input sequence.
+        """
         log_probs, log_probs_len = self._get_log_probs(features)
         _, pred_words_batch = self._decode(
             log_probs.float().contiguous().cpu(), log_probs_len
@@ -283,38 +345,23 @@ class DownstreamExpert(nn.Module):
                 the loss to be optimized, should not be detached
                 a single scalar in torch.FloatTensor
         """
-        #print("len(features)", len(features))
-        #print([feat.size() for feat in features])
         log_probs, log_probs_len = self._get_log_probs(features)
-        #print("log_probs", log_probs.size())
-        #print("log_probs_len", log_probs_len)
         device = features[0].device
         labels = [l.int() for l in labels]
         labels_len = torch.tensor([len(label) for label in labels]).int().to(device=device)
-        #labels = [torch.IntTensor(l) for l in labels]
-        #labels_len = torch.IntTensor([len(label) for label in labels]).to(device=device)
-        #print("len(labels)", len(labels))
-        #print([label.size() for label in labels])
-        #print("labels_len", labels_len)
         labels = pad_sequence(
             labels,
             batch_first=True,
             padding_value=self.dictionary.pad(),
         ).to(device=device)
-        #print("labels", labels.size())
-        #print("log_probs", log_probs.size())        
-        #print("labels", labels.size())
-        #print("log_probs_len", log_probs_len)
-        #print("labels_len", labels_len)
 
         loss = self.objective(
-            log_probs.transpose(0, 1),  # (N, T, C) -> (T, N, C)
+            log_probs.transpose(0, 1),  # (B, T, C) -> (T, B, C) as required by CTCLoss
             labels,
             log_probs_len,
             labels_len,
         )
         records["loss"].append(loss.item())
-        #print("loss", loss)
 
         target_tokens_batch = []
         target_words_batch = []
@@ -397,9 +444,14 @@ class DownstreamExpert(nn.Module):
         print(f"{split} wer: {wer}")
 
         save_names = []
-        if "dev" in split and wer < self.best_score:
-            self.best_score = torch.ones(1) * wer
-            save_names.append(f"{split}-best.ckpt")
+        if self.metric == "wer":
+            if "dev" in split and wer < self.best_score:
+                self.best_score = torch.ones(1) * wer
+                save_names.append(f"{split}-best.ckpt")
+        elif self.metric == "uer":
+            if "dev" in split and uer < self.best_score:
+                self.best_score = torch.ones(1) * uer
+                save_names.append(f"{split}-best.ckpt")
 
         if "test" in split or "dev" in split:
             lm = "noLM" if self.decoder is None else "LM"

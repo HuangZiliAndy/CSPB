@@ -1,45 +1,59 @@
 #!/bin/bash
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=6
-#SBATCH --mem=15360
-#SBATCH --job-name=prepare_asr_seg
-#SBATCH --time=1-00:00:00
+#
+# prepare_asr_seg.sh — Prepare per-utterance ASR data directories for the MMCSG corpus.
+#
+# This script runs in two stages for each recording condition:
+#
+#   Stage 1 — downstream/asr_ami/prepare_asr_seg.py
+#     Reads recording-level Kaldi data directories (produced by data_prep/prepare_mmcsg.sh)
+#     and cuts each recording into individual utterance WAV files using the segments file.
+#     Writes wav.scp, text, utt2spk, reco2dur, and utt2num_samples for each split.
+#
+#   Stage 2 — downstream/asr_ami/filter_utt.py
+#     Filters utterances by duration (default: 0.1 s – 20.0 s) for the train and dev splits,
+#     writing *_filter directories that are used directly by the training script.
+#     eval is left unfiltered.
+#
+# Prerequisites:
+#   Run data_prep/prepare_mmcsg.sh first to populate the input Kaldi data directories.
+#
+# Usage:
+#   bash downstream/asr_mmcsg/prepare_asr_seg.sh
 
 source path.sh
 
+# Root directory containing the Kaldi data directories produced by prepare_mmcsg.sh
+# Expected structure: ${mmcsg_data_dir}/${cond}/{train,dev,eval}/
+mmcsg_data_dir=/path/to/data/MMCSG
+
+# Root output directory for the segmented ASR data
+# Outputs will be written to: ${output_base_dir}/${cond}/{train,dev,eval}/
+#                          and ${output_base_dir}/${cond}/{train_filter,dev_filter}/
+output_base_dir=/path/to/downstream/asr_mmcsg
+
+# Utterances outside [min_dur, max_dur] are excluded by prepare_asr_seg.py.
+# Set wide bounds here to keep all segments; let filter_utt.py apply the training filter.
 min_dur=0.0
 max_dur=10000.0
 
-input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/MMCSG/MDM_BF0,2
-output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_mmcsg/MDM_BF0,2
+# Recording conditions to process. Examples:
+#   MDM_BF0,2   — Beamformed from microphones 0 and 2
+#   MDM_BF0,2,3,4 — Beamformed from microphones 0, 2, 3, and 4
+for cond in MDM_BF0,2 MDM_BF0,2,3,4; do
+  input_dir=${mmcsg_data_dir}/${cond}
+  output_dir=${output_base_dir}/${cond}
 
-for split in dev eval train; do
-  python downstream/asr_mmcsg/prepare_asr_seg.py \
-      ${input_dir}/${split} \
-      ${output_dir}/${split} \
-      --min_dur $min_dur --max_dur $max_dur
-  python3 downstream/asr_mmcsg/filter_utt.py ${output_dir}/${split} ${output_dir}/${split}_filter
-done
+  # Stage 1: cut recordings into per-utterance WAV files
+  for split in train dev eval; do
+    python3 downstream/asr_ami/prepare_asr_seg.py \
+        ${input_dir}/${split} \
+        ${output_dir}/${split} \
+        --min_dur ${min_dur} \
+        --max_dur ${max_dur}
+  done
 
-input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/MMCSG/MDM_BF0,2,3,4
-output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_mmcsg/MDM_BF0,2,3,4
-
-for split in dev eval train; do
-  python downstream/asr_mmcsg/prepare_asr_seg.py \
-      ${input_dir}/${split} \
-      ${output_dir}/${split} \
-      --min_dur $min_dur --max_dur $max_dur
-  python3 downstream/asr_mmcsg/filter_utt.py ${output_dir}/${split} ${output_dir}/${split}_filter
-done
-
-input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/MMCSG/MDM_BF
-output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_mmcsg/MDM_BF
-
-for split in dev eval train; do
-  python downstream/asr_mmcsg/prepare_asr_seg.py \
-      ${input_dir}/${split} \
-      ${output_dir}/${split} \
-      --min_dur $min_dur --max_dur $max_dur
-  python3 downstream/asr_mmcsg/filter_utt.py ${output_dir}/${split} ${output_dir}/${split}_filter
+  # Stage 2: apply duration filtering to train and dev
+  # filter_utt.py defaults: --min_dur 0.1 --max_dur 20.0
+  python3 downstream/asr_ami/filter_utt.py ${output_dir}/train ${output_dir}/train_filter
+  python3 downstream/asr_ami/filter_utt.py ${output_dir}/dev   ${output_dir}/dev_filter
 done

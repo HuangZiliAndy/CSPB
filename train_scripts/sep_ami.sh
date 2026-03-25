@@ -1,6 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=gpu-a100
-#SBATCH --account=a100acct
+#SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -11,14 +10,15 @@
 
 source path.sh
 
-cache_dir=/export/c02/hzili1/tools/s3prl/s3prl/downloads
+# Directory where s3prl caches upstream model weights
+cache_dir=/path/to/s3prl/downloads
 
+# Upstream model. Use any s3prl-supported name (e.g. hubert_base, wavlm_base_plus).
+# To use a custom pre-trained upstream, uncomment and set:
+#   upstream=custom_local
+#   ckpt=/path/to/upstream/checkpoint
+#   and add:  -k ${ckpt}  to the run_downstream.py call below.
 upstream=hubert_base
-
-#upstream=unix_enc_custom_local
-#cfgname=cfg42
-#iter=200000
-#ckpt=/export/c02/hzili1/workspace/s3prl/s3prl/upstream/unix_enc_custom/exp/${cfgname}/checkpoint-${iter}
 
 lr=0.001
 gpus=1
@@ -26,6 +26,8 @@ port=25652
 #distributed="-m torch.distributed.launch --nproc_per_node ${gpus} --master_port ${port}"
 distributed=""
 
+# Recording condition. Controls which data directory and channel(s) to use.
+# Set cond to one of the values handled in the if-block below.
 cond=sdm1
 if [[ "$cond" == "mdm_0,2,4,6" ]]; then
     data="MDM"
@@ -46,12 +48,16 @@ elif [[ "$cond" == "sdm1" ]]; then
     data="MDM"
     channel="0"
 else
-    exit 1;
+    exit 1
 fi
 
 exp_dir="`pwd`/exp/sep_ami/${upstream}_${lr}_${cond}"
-train_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_ami/2spk_reverb_diffuse/${data}/train
-dev_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_ami/2spk_reverb_diffuse/${data}/dev
+
+# Root directory containing the separation data for AMI.
+# Expected sub-directories: ${data}/train, ${data}/dev
+sep_data_dir=/path/to/downstream/sep_ami
+train_dir=${sep_data_dir}/${data}/train
+dev_dir=${sep_data_dir}/${data}/dev
 
 echo $train_dir
 echo $dev_dir
@@ -62,7 +68,6 @@ python3 $distributed run_downstream.py \
     -p $exp_dir \
     -m train \
     -u $upstream \
-    -k $ckpt \
     -d sep_ami \
     -c downstream/sep_ami/config/AMI/cfg.yaml \
     -o "config.downstream_expert.datarc.channel='${channel}',,config.optimizer.lr=${lr},,config.downstream_expert.loaderrc.train_dir=${train_dir},,config.downstream_expert.loaderrc.dev_dir=${dev_dir}"
