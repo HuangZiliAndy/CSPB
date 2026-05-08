@@ -24,12 +24,12 @@ source path.sh
 
 # Root directory containing the Kaldi data directories produced by prepare_ami.sh
 # Expected structure: ${ami_data_dir}/${cond}/{train,dev,test}/
-ami_data_dir=/path/to/data/AMI
+ami_data_dir=/workspace/dataset/CSPB/data/AMI
 
 # Root output directory for the segmented ASR data
 # Outputs will be written to: ${output_base_dir}/${cond}/{train,dev,test}/
 #                          and ${output_base_dir}/${cond}/{train_filter,dev_filter}/
-output_base_dir=/path/to/downstream/asr_ami
+output_base_dir=/workspace/dataset/CSPB/downstream/asr_ami
 
 # Utterances outside [min_dur, max_dur] are excluded by prepare_asr_seg.py.
 # The actual training duration filter is applied by filter_utt.py (stage 2).
@@ -40,7 +40,7 @@ max_dur=10000.0
 # Recording conditions to process. Examples:
 #   SDM1 — Single Distant Microphone (mono)
 #   MDM  — Multiple Distant Microphones (multi-channel)
-for cond in SDM1 MDM; do
+for cond in SDM1; do
   input_dir=${ami_data_dir}/${cond}
   output_dir=${output_base_dir}/${cond}
 

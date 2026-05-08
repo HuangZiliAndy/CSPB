@@ -30,13 +30,6 @@
 #
 # Output is written to: {output_dir}/{train,dev,test}/
 
-workspace_dir=/export/c02/hzili1/workspace/
-
-# Path to the cloned BUT AMI diarization setup repository
-BUT_repo_dir=${workspace_dir}/AMI-diarization-setup
-
-# Root directory of the raw AMI corpus
-AMI_dir=/export/corpora5/amicorpus
 
 # Recording condition to extract:
 #   SDM1    — Single Distant Microphone, Array1 channel 1 ({meeting_id}.Array1-01.wav)
@@ -44,11 +37,17 @@ AMI_dir=/export/corpora5/amicorpus
 #   MDM8    — Multiple Distant Microphones, all 8 Array1 channels merged via sox
 cond=SDM1
 
-# Root output directory; split-specific subdirs will be created inside
-output_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/${cond}
+# Root directory of the raw AMI corpus
+AMI_dir=/workspace/dataset/AMI
 
 # Path to the ESPnet AMI recipe directory (must already have data/ populated)
-espnet_dir=${workspace_dir}/espnet/egs2/ami/asr1
+espnet_dir=/workspace/workspace/espnet/egs2/ami/asr1
+
+# Path to the cloned BUT AMI diarization setup repository
+BUT_repo_dir=/workspace/workspace/AMI-diarization-setup
+
+# Root output directory; split-specific subdirs will be created inside
+output_dir=/workspace/dataset/CSPB/data/AMI/${cond}
 
 # Stage 1: generate recording-level files (wav.scp, rttm.scp, reco2dur, ref_rttm, uem)
 python3 data_prep/prepare_ami.py $BUT_repo_dir $AMI_dir $output_dir --cond $cond
