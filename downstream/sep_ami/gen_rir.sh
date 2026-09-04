@@ -11,7 +11,7 @@
 source path.sh
 
 mic_arch=AMI
-output_dir=/export/c02/hzili1/workspace/s3prl/s3prl/downstream/sep_alimeeting/${mic_arch}_RIRs_3srcs
+output_dir=/export/c02/hzili1/workspace/s3prl/s3prl/downstream/sep_ami/${mic_arch}_RIRs_3srcs
 
 python3 downstream/sep_ami/gen_rir.py $output_dir --mic_arch ${mic_arch} --num_rirs 50000
 

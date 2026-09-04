@@ -33,6 +33,7 @@ parser.add_argument('--early_rir_dur', type=float, default=0.05, help='duration 
 parser.add_argument('--single_channel', type=int, default=0, help='whether to simulate single channel speech')
 parser.add_argument('--seed', type=int, default=7, help='random seed')
 args = parser.parse_args()
+assert args.sr == 16000, "crop_dur/crop_len logic below hardcodes 16000 Hz, --sr {} is not supported".format(args.sr)
 
 def compute_snr(signal, noise):
     sig_pwr = np.mean(signal**2)
@@ -203,6 +204,8 @@ def align_audios(clean_srcs_list, add_noise, full_overlap, s1_first):
         num_speech_srcs = len(clean_srcs_list)
         noise = None
 
+    assert num_speech_srcs in (1, 2), "align_audios only supports 1 or 2 speech sources, got {}".format(num_speech_srcs)
+
     if num_speech_srcs == 1:
         total_sample = num_samples[0]
         new_clean_srcs_list.append(clean_srcs_list[0])
@@ -231,7 +234,7 @@ def align_audios(clean_srcs_list, add_noise, full_overlap, s1_first):
 
     if add_noise:
         if noise.shape[0] <= total_sample:
-            noise = np.repeat(noise, int(total_sample / noise.shape[0]) + 1)
+            noise = np.tile(noise, int(total_sample / noise.shape[0]) + 1)
         start_noise = np.random.randint(low=0, high=noise.shape[0] - total_sample)
         new_clean_srcs_list.append(noise[start_noise:start_noise + total_sample])
         start_sample.append(0)
@@ -283,6 +286,7 @@ def main():
     num_spk_prob = [float(s) for s in args.num_spk_prob.split(',')]
 
     total_srcs = np.max(num_spk_list) + args.add_noise
+    src_scp_files = {}
     for i in range(total_srcs):
         if i == total_srcs - 1:
             if args.add_noise:
@@ -295,12 +299,15 @@ def main():
             os.makedirs("{}/wav/{}".format(args.output_dir, srcname))
         if not os.path.exists("{}/wav/{}_direct".format(args.output_dir, srcname)):
             os.makedirs("{}/wav/{}_direct".format(args.output_dir, srcname))
+        src_scp_files[srcname] = open("{}/{}.scp".format(args.output_dir, srcname), 'w')
+        src_scp_files["{}_direct".format(srcname)] = open("{}/{}_direct.scp".format(args.output_dir, srcname), 'w')
     if not os.path.exists("{}/wav/mix".format(args.output_dir)):
         os.makedirs("{}/wav/mix".format(args.output_dir))
     if not os.path.exists("{}/metadata".format(args.output_dir)):
         os.makedirs("{}/metadata".format(args.output_dir))
 
     wav_scp_file = open("{}/wav.scp".format(args.output_dir), 'w')
+    mix_scp_file = open("{}/mix.scp".format(args.output_dir), 'w')
     reco2dur_file = open("{}/reco2dur".format(args.output_dir), 'w')
     utt2spk_file = open("{}/utt2spk".format(args.output_dir), 'w')
 
@@ -449,6 +456,7 @@ def main():
         sf.write(output_path, np.transpose(mixture), args.sr)
         np.savez('{}/metadata/{}.npz'.format(args.output_dir, fname), **info_dict)
         wav_scp_file.write("{} {}\n".format(fname, output_path))
+        mix_scp_file.write("{} {}\n".format(fname, output_path))
         reco2dur_file.write("{} {}\n".format(fname, duration))
         utt2spk_file.write("{} {}\n".format(fname, fname))
 
@@ -461,7 +469,9 @@ def main():
                     srcname = "s{}".format(i+1)
             else:
                 srcname = "s{}".format(i+1)
-            sf.write('{}/wav/{}/{}.wav'.format(args.output_dir, srcname, fname), clean_srcs[i, :], args.sr)
+            src_path = '{}/wav/{}/{}.wav'.format(args.output_dir, srcname, fname)
+            sf.write(src_path, clean_srcs[i, :], args.sr)
+            src_scp_files[srcname].write("{} {}\n".format(fname, src_path))
 
         if direct_srcs is not None:
             assert num_spk + args.add_noise == len(direct_srcs)
@@ -473,11 +483,16 @@ def main():
                         srcname = "s{}_direct".format(i+1)
                 else:
                     srcname = "s{}_direct".format(i+1)
-                sf.write('{}/wav/{}/{}.wav'.format(args.output_dir, srcname, fname), np.transpose(direct_srcs[i]), args.sr)
+                src_path = '{}/wav/{}/{}.wav'.format(args.output_dir, srcname, fname)
+                sf.write(src_path, np.transpose(direct_srcs[i]), args.sr)
+                src_scp_files[srcname].write("{} {}\n".format(fname, src_path))
 
     wav_scp_file.close()
+    mix_scp_file.close()
     reco2dur_file.close()
     utt2spk_file.close()
+    for f in src_scp_files.values():
+        f.close()
     return 0
 
 if __name__ == '__main__':

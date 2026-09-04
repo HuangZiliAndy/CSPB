@@ -23,7 +23,7 @@ parser.add_argument('--seed', type=int, default=7, help='random seed')
 args = parser.parse_args()
 
 def sample_room_dim(max_room, min_room):
-    return np.random.uniform(np.array(max_room), np.array(min_room))
+    return np.random.uniform(np.array(min_room), np.array(max_room))
 
 def sample_src_pos(room_dim, num_src, array_pos,
                    min_mic_dis, max_mic_dis, min_dis_wall):

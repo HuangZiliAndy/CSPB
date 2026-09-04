@@ -133,6 +133,7 @@ def main():
                     audio, sr = sf.read(io.BytesIO(p.stdout.read()), dtype="float32")
                 else:
                     raise ValueError("Condition not defined.")
+                assert sr == 16000, "expected 16000 Hz, got {} for {}".format(sr, audio_path_spk)
                 assert len(audio.shape) == 1
                 ihm_spk_audio = np.expand_dims(audio, axis=1)
                 meetspk2audio["{}_{}".format(utt, spk)] = ihm_spk_audio

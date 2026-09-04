@@ -17,6 +17,9 @@ parser.add_argument('--overlap_thres', type=float, default=5.0, help='keep the s
 parser.add_argument('--min_dur', type=float, default=0.1, help='segment length should be longer than min_dur')
 args = parser.parse_args()
 
+def strip_spk_prefix(spk):
+    return spk[3:] if spk.startswith('SPK') else spk
+
 def get_meetspk2channel(far_text_dir, near_audio_dir):
     meetspk2audiopath, meet2spks = {}, {}
     textgrid_files = list(os.listdir(far_text_dir))
@@ -79,7 +82,7 @@ def get_rttm_scp(fname):
 def get_clean_segments(duration, segs, spk_list, overlap_thres):
     total_frames = round(duration * 100.0)
     spk_matrix = np.zeros((total_frames, len(spk_list)))
-    spkmap = {(spk.split('_')[-1]).lstrip('SPK'): spk for spk in spk_list}
+    spkmap = {strip_spk_prefix(spk.split('_')[-1]): spk for spk in spk_list}
     for seg in segs:
         start_t, end_t, spk = seg
         spk = spkmap[spk]
@@ -138,6 +141,7 @@ def main():
                     audio, sr = sf.read(io.BytesIO(p.stdout.read()), dtype="float32")
                 else:
                     raise ValueError("Condition not defined.")
+                assert sr == 16000, "expected 16000 Hz, got {} for {}".format(sr, audio_path_spk)
                 assert len(audio.shape) == 1
                 ihm_spk_audio = np.expand_dims(audio, axis=1)
                 meetspk2audio["{}_{}".format(utt, spk)] = ihm_spk_audio
@@ -149,7 +153,7 @@ def main():
 
         clean_segs_utt = [seg for seg in clean_segs_utt if seg[1] - seg[0] >= args.min_dur]
 
-        spkmap = {(spk.split('_')[-1]).lstrip('SPK'): spk for spk in spklist}
+        spkmap = {strip_spk_prefix(spk.split('_')[-1]): spk for spk in spklist}
         # write the segment to disk
         for seg in clean_segs_utt:
             start_t, end_t, spk = seg

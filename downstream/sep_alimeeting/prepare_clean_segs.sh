@@ -20,6 +20,6 @@ for split in Train Test Eval; do
   output_dir=${IHM_CLEAN_dir}/${split}
   near_audio_dir=${ALM_dir}/${split}_Ali/${split}_Ali_near/audio_dir
   far_text_dir=${ALM_dir}/${split}_Ali/${split}_Ali_far/textgrid_dir
-  #python3 downstream/sep_alimeeting/prepare_clean_segs.py ${sdm1_dir} ${output_dir} ${near_audio_dir} ${far_text_dir}
+  python3 downstream/sep_alimeeting/prepare_clean_segs.py ${sdm1_dir} ${output_dir} ${near_audio_dir} ${far_text_dir}
   python3 downstream/sep_ami/filter_utt.py ${output_dir} ${output_dir}_filter --min_dur 2.0
 done
