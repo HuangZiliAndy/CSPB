@@ -213,8 +213,10 @@ config and provide the `kenlm_model` and `lexicon` paths.
 
 ### Diarization
 
-The evaluation script sweeps over clustering thresholds on `dev`, selects the best
-threshold by DER, then runs final evaluation on `test`.
+The evaluation script runs inference on `test` with ground-truth speaker
+assignment (`--gt_spk_assign 1`): speaker identities are taken from the reference
+RTTM instead of clustering speaker embeddings, so the DER reflects the
+segmentation model alone and no clustering threshold needs to be tuned.
 
 ```bash
 bash eval_scripts/diar_ami_infer.sh
@@ -230,8 +232,10 @@ python3 downstream/diar_ami/evaluate_v1.py \
     /path/to/data/test \
     /path/to/output/rttm \
     --channel 0 \
-    --cluster_thres 0.6 \
-    --segmentation_thres 0.5
+    --gt_spk_assign 1 \
+    --normalize 1 \
+    --segmentation_thres 0.5 \
+    --ref_rttm /path/to/data/test/ref_rttm
 ```
 
 Hypothesis RTTMs are then scored with `md-eval.pl`:
