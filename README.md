@@ -134,6 +134,35 @@ bash downstream/sep_ami/simu_mch_data.sh
 
 For AliMeeting, use the corresponding scripts under `downstream/sep_alimeeting/`.
 
+**Building the evaluation utterance groups (`test_utt_group_1spk` / `test_utt_group_2spk`)**
+
+These are a separate, real-audio evaluation set — not derived from the
+`prepare_clean_segs.sh` / `simu_mch_data.sh` simulated-mixture pipeline above,
+which is only used to build simulated training/dev data and whose output
+directories have no `segments` file. Instead they are built from the
+**recording-level Kaldi directory from Step 1** (`data/AMI/<cond>/{dev,test}`,
+produced by `data_prep/prepare_ami.sh`), which does contain `segments` —
+real per-speaker time boundaries from the AMI annotations. `create_utt_group.py`
+merges those into groups of naturally overlapping/non-overlapping speech, which
+`filter_utt_group.py` then splits by number of active speakers.
+
+Use **SDM1 or MDM** as `cond`, not IHM-MIX: this test set is meant to evaluate
+separation on the actual distant-microphone mixture the model has to separate,
+not on the clean headset mix (matches `data_dir` in `eval_scripts/sep_ami_infer.sh`,
+which points at the `SDM1` condition).
+
+```bash
+# Run Step 1 first with cond=SDM1 (or MDM) to get data/AMI/SDM1/{dev,test}/segments
+bash data_prep/prepare_ami.sh
+
+# Then build and filter the utterance groups
+bash downstream/sep_ami/create_utt_group.sh
+```
+
+Set `data_dir`/`output_dir` inside `create_utt_group.sh` before running. The same
+applies to AliMeeting via `downstream/sep_alimeeting/create_utt_group.sh`
+(input: `data/AliMeeting/<cond>/{Eval,Test}`).
+
 ---
 
 ## Step 3: Training

@@ -11,7 +11,7 @@
 
 source path.sh
 
-data=IHM-MIX
+data=SDM1
 data_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/${data}
 output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_ami
 
