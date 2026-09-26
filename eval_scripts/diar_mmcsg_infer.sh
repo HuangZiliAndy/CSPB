@@ -19,20 +19,26 @@ exp_dir="exp/diar_mmcsg/"
 ckpt="${exp_dir}/best-states-dev.ckpt"
 
 cond=sdm1
-if [[ "$cond" == "mdm_0,2,4,6" ]]; then
-    data="MDM"
-    channel="0,2,4,6"
-elif [[ "$cond" == "mdm_0,4" ]]; then
-    data="MDM"
-    channel="0,4"
-elif [[ "$cond" == "mdm_bf0,2,4,6" ]]; then
-    data="MDM_BF0,2,4,6"
-    channel="0"
-elif [[ "$cond" == "mdm_bf0,4" ]]; then
-    data="MDM_BF0,4"
-    channel="0"
-elif [[ "$cond" == "sdm1" ]]; then
+if [[ "$cond" == "sdm1" ]]; then
     data="SDM1"
+    channel="0"
+elif [[ "$cond" == "mdm_0,2" ]]; then
+    data="MDM"
+    channel="0,2"
+elif [[ "$cond" == "mdm_0,2,3,4" ]]; then
+    data="MDM"
+    channel="0,2,3,4"
+elif [[ "$cond" == "mdm_all" ]]; then
+    data="MDM"
+    channel="0,1,2,3,4,5,6"
+elif [[ "$cond" == "mdm_bf0,2" ]]; then
+    data="MDM_BF0,2"
+    channel="0"
+elif [[ "$cond" == "mdm_bf0,2,3,4" ]]; then
+    data="MDM_BF0,2,3,4"
+    channel="0"
+elif [[ "$cond" == "mdm_bfall" ]]; then
+    data="MDM_BF"
     channel="0"
 else
     exit 1;

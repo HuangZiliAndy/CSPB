@@ -177,6 +177,22 @@ Set `upstream` to any s3prl-supported model name (e.g. `hubert_base`, `wavlm_bas
 Set `cond` to select the recording condition and `asr_data_dir` / `diar_data_dir` / `sep_data_dir`
 to point to the prepared data.
 
+Every training and evaluation script supports the same seven conditions (default `sdm1`).
+AMI and AliMeeting have 8 microphones, MMCSG has 7:
+
+| Condition | AMI / AliMeeting `cond` | MMCSG `cond` | Data directory | Channels |
+|-----------|-------------------------|--------------|----------------|----------|
+| Single distant mic | `sdm1` | `sdm1` | `SDM1` | 0 |
+| 2 channels | `mdm_0,4` | `mdm_0,2` | `MDM` | 0,4 / 0,2 |
+| 4 channels | `mdm_0,2,4,6` | `mdm_0,2,3,4` | `MDM` | 0,2,4,6 / 0,2,3,4 |
+| All channels | `mdm_all` | `mdm_all` | `MDM` | 0–7 / 0–6 |
+| Beamformed, 2 channels | `mdm_bf0,4` | `mdm_bf0,2` | `MDM_BF0,4` / `MDM_BF0,2` | 0 |
+| Beamformed, 4 channels | `mdm_bf0,2,4,6` | `mdm_bf0,2,3,4` | `MDM_BF0,2,4,6` / `MDM_BF0,2,3,4` | 0 |
+| Beamformed, all channels | `mdm_bfall` | `mdm_bfall` | `MDM_BF` | 0 |
+
+SE/SS training uses simulated multi-channel mixtures, which exist only as `MDM`;
+there `sdm1` means channel 0 of `MDM`.
+
 To use a custom pre-trained upstream checkpoint, uncomment the `ckpt=` line in the script
 and add `-k ${ckpt}` to the `run_downstream.py` call.
 
