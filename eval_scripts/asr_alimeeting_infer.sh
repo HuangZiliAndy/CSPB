@@ -41,6 +41,9 @@ exp_dir="/export/c02/hzili1/workspace/s3prl/s3prl/exp/asr_alimeeting/"
 ckpt="${exp_dir}/dev-best.ckpt"
 test_dir="/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_alimeeting/${data}/Test"
 
+# ESPnet checkout, used by score.sh for tokenize_text.py and sclite
+export ESPNET_DIR=/path/to/espnet
+
 python3 run_downstream.py \
     -m evaluate \
     -e $ckpt \
@@ -48,9 +51,10 @@ python3 run_downstream.py \
 
 ./downstream/asr_alimeeting/score.sh $exp_dir false $test_dir
 
+# To decode with the KenLM language model instead:
 #python3 run_downstream.py \
 #	-m evaluate \
 #	-e $ckpt \
 #	-o "config.downstream_expert.datarc.max_samples=1000000,,config.downstream_expert.loaderrc.eval_batchsize=1,,config.downstream_expert.loaderrc.test_dir=${test_dir},,config.downstream_expert.datarc.mch=False,,config.downstream_expert.datarc.channel='0',,config.downstream_expert.datarc.decoder_args.decoder_type='kenlm'"
 #
-#./downstream/asr_ami/score.sh $exp_dir true $test_dir
+#./downstream/asr_alimeeting/score.sh $exp_dir true $test_dir

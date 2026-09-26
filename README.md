@@ -227,7 +227,14 @@ Run inference and score with WER using ESPnet's `sclite` tool.
 ```bash
 bash eval_scripts/asr_ami_infer.sh
 bash eval_scripts/asr_alimeeting_infer.sh
+bash eval_scripts/asr_mmcsg_infer.sh
 ```
+
+In `asr_ami_infer.sh` and `asr_mmcsg_infer.sh`, set `upstream`, `lr`, and `cond` to the
+values used for training (the checkpoint is read from
+`exp/asr_{corpus}/${upstream}_${lr}_${cond}/dev-best.ckpt`) and `asr_data_dir` to the
+segmented ASR data. MMCSG is evaluated on `eval_filter_30s` (eval utterances of at most
+30 s, produced by `downstream/asr_mmcsg/prepare_asr_seg.sh`).
 
 Internally, inference calls:
 

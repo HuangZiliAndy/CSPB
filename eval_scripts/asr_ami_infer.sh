@@ -9,25 +9,64 @@
 #SBATCH --gpus=1
 #SBATCH --exclude=c04
 
-export PATH="/export/c02/hzili1/tmp/home/hzili1/anaconda3/envs/csp/bin:$PATH"
+source path.sh
 
-gpus=1
-port=25678
+# Must match the upstream / lr / cond used in train_scripts/asr_ami.sh
+upstream=hubert_base
+lr=0.0001
 
-exp_dir="/export/c02/hzili1/workspace/s3prl/s3prl/exp/asr_ami_past/wavlm_large_0.0001"
-ckpt="${exp_dir}/dev-best_new.ckpt"
-test_dir="/export/c02/hzili1/datasets/s3prl_csp/downstream/asr_ami/SDM1/test"
+cond=sdm1
+if [[ "$cond" == "sdm1" ]]; then
+    data="SDM1"
+    channel="0"
+elif [[ "$cond" == "mdm_0,4" ]]; then
+    data="MDM"
+    channel="0,4"
+elif [[ "$cond" == "mdm_0,2,4,6" ]]; then
+    data="MDM"
+    channel="0,2,4,6"
+elif [[ "$cond" == "mdm_all" ]]; then
+    data="MDM"
+    channel="0,1,2,3,4,5,6,7"
+elif [[ "$cond" == "mdm_bf0,4" ]]; then
+    data="MDM_BF0,4"
+    channel="0"
+elif [[ "$cond" == "mdm_bf0,2,4,6" ]]; then
+    data="MDM_BF0,2,4,6"
+    channel="0"
+elif [[ "$cond" == "mdm_bfall" ]]; then
+    data="MDM_BF"
+    channel="0"
+else
+    exit 1;
+fi
 
-#python3 run_downstream.py \
-#    -m evaluate \
-#    -e $ckpt \
-#    -o "config.downstream_expert.datarc.max_samples=1000000,,config.downstream_expert.loaderrc.eval_batchsize=1,,config.downstream_expert.loaderrc.test_dir=${test_dir},,config.downstream_expert.datarc.channel='0'"
+exp_dir="`pwd`/exp/asr_ami/${upstream}_${lr}_${cond}"
+ckpt="${exp_dir}/dev-best.ckpt"
+
+# Root directory containing the segmented ASR data produced by
+# downstream/asr_ami/prepare_asr_seg.sh
+asr_data_dir=/path/to/downstream/asr_ami
+test_dir="${asr_data_dir}/${data}/test"
+
+# ESPnet checkout, used by score.sh for tokenize_text.py and sclite
+export ESPNET_DIR=/path/to/espnet
+
+echo $test_dir
+echo $channel
+echo $ckpt
+
+python3 run_downstream.py \
+    -m evaluate \
+    -e $ckpt \
+    -o "config.downstream_expert.datarc.max_samples=1000000,,config.downstream_expert.loaderrc.eval_batchsize=1,,config.downstream_expert.loaderrc.test_dir=${test_dir},,config.downstream_expert.datarc.channel='${channel}'"
 
 ./downstream/asr_ami/score.sh $exp_dir false $test_dir
 
+# To decode with the KenLM language model instead:
 #python3 run_downstream.py \
 #	-m evaluate \
 #	-e $ckpt \
-#	-o "config.downstream_expert.datarc.max_samples=1000000,,config.downstream_expert.loaderrc.eval_batchsize=1,,config.downstream_expert.loaderrc.test_dir=${test_dir},,config.downstream_expert.datarc.mch=False,,config.downstream_expert.datarc.channel='0',,config.downstream_expert.datarc.decoder_args.decoder_type='kenlm'"
+#	-o "config.downstream_expert.datarc.max_samples=1000000,,config.downstream_expert.loaderrc.eval_batchsize=1,,config.downstream_expert.loaderrc.test_dir=${test_dir},,config.downstream_expert.datarc.mch=False,,config.downstream_expert.datarc.channel='${channel}',,config.downstream_expert.datarc.decoder_args.decoder_type='kenlm'"
 #
 #./downstream/asr_ami/score.sh $exp_dir true $test_dir
