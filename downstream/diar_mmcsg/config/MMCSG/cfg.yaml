@@ -28,8 +28,8 @@ downstream_expert:
     num_workers: 16
     train_batchsize: 32
     eval_batchsize: 1
-    train_dir: /export/fs05/hzili1/datasets/s3prl_csp/downstream/diar_dipco/SDM1/dev_filter
-    dev_dir: /export/fs05/hzili1/datasets/s3prl_csp/downstream/diar_dipco/SDM1/eval_filter
+    train_dir: /export/fs05/hzili1/datasets/s3prl_csp/downstream/diar_mmcsg/SDM1/train_filter
+    dev_dir: /export/fs05/hzili1/datasets/s3prl_csp/downstream/diar_mmcsg/SDM1/dev_filter
 
   modelrc: 
     rnn_layers: 2

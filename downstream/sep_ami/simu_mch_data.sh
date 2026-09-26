@@ -19,12 +19,9 @@ wham_noise_dir=/export/c02/hzili1/datasets/wham_noise
 
 # Base directory of the simulated RIRs (subfolders dev/test/train), from downstream/sep_ami/gen_rir.sh
 RIR_dir=downstream/sep_ami/AMI_RIRs_3srcs
-#./downstream/sep_ami/gen_rir.sh $RIR_dir
 
-SDM1_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/SDM1
+# Clean speech segments from downstream/sep_ami/prepare_clean_segs.sh
 IHM_CLEAN_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_ami/IHM_CLEAN
-annotations=/export/corpora5/amicorpus/ami_public_manual_1.6.2
-#./downstream/sep_ami/prepare_clean_segs.sh $SDM1_dir $IHM_CLEAN_dir $annotations
 
 output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_ami/2spk_reverb_diffuse/MDM
 

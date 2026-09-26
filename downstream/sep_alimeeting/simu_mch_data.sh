@@ -12,11 +12,11 @@ source path.sh
 
 wham_noise_dir=/export/c02/hzili1/datasets/wham_noise
 
+# Simulated RIRs (subfolders dev/test/train), from downstream/sep_alimeeting/gen_rir.sh
 RIR_dir=downstream/sep_alimeeting/ALM_RIRs_3srcs
-#./downstream/sep_alimeeting/gen_rir.sh $RIR_dir
 
+# Clean speech segments from downstream/sep_alimeeting/prepare_clean_segs.sh
 IHM_CLEAN_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_alimeeting/IHM_CLEAN
-#./downstream/sep_alimeeting/prepare_clean_segs.sh
 
 output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/sep_alimeeting/2spk_reverb_diffuse/MDM
 

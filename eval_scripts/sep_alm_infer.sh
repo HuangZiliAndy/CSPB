@@ -47,8 +47,6 @@ for dir in $test_sets; do
   num_srcs=$(cat $test_dir/num_srcs)
   _logdir="${output_dir}/logdir"
 
-  #${AMI_dir}/utils/slurm.pl --config $AMI_dir/conf/slurm.conf --gpu 1 "${_logdir}"/infer_sep.log \
-  
   python3 downstream/sep_alimeeting/infer.py $ckpt $test_dir $sdm1_dir $output_dir --channel $channel --normalize $normalize --num_srcs $num_srcs
 done
 
