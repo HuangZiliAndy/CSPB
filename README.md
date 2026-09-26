@@ -38,7 +38,8 @@ export PATH="${PATH}:${BEAMFORMIT}"
 ## Step 1: Prepare Dataset in Kaldi Format
 
 Each script reads the raw corpus and writes recording-level Kaldi data directories
-(`wav.scp`, `segments`, `text`, `utt2spk`, `rttm.scp`, `uem`).
+(`wav.scp`, `segments`, `text`, `utt2spk`, `rttm.scp`, `uem`, and `ref_rttm` — all
+per-recording RTTMs concatenated, used as the diarization scoring reference).
 
 ```bash
 bash data_prep/prepare_ami.sh
@@ -120,6 +121,10 @@ Set `input_dir` and `output_dir` inside each script.
 
 Prepares clean reference segments from the IHM microphone and simulates
 multi-channel mixtures using room impulse responses.
+
+Mixture simulation (`simu_mch_data.sh`) also needs multi-channel RIRs, generated with
+`downstream/sep_ami/gen_rir.sh` (`sep_alimeeting/gen_rir.sh` for AliMeeting), and the
+[WHAM!](http://wham.whisper.ai/) noise corpus (`wham_noise_dir`).
 
 ```bash
 # Step 1 — extract clean IHM reference segments

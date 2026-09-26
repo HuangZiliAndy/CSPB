@@ -34,7 +34,7 @@
 # Recording condition to extract:
 #   SDM1    — Single Distant Microphone, Array1 channel 1 ({meeting_id}.Array1-01.wav)
 #   IHM-MIX — Individual Headset Microphone mix ({meeting_id}.Mix-Headset.wav)
-#   MDM8    — Multiple Distant Microphones, all 8 Array1 channels merged via sox
+#   MDM    — Multiple Distant Microphones, all 8 Array1 channels merged via sox
 cond=SDM1
 
 # Root directory of the raw AMI corpus

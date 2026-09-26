@@ -12,7 +12,7 @@
 #   Stage 2 — downstream/asr_ami/filter_utt.py
 #     Filters utterances by duration (default: 0.1 s – 20.0 s) for the train and dev splits,
 #     writing *_filter directories that are used directly by the training script.
-#     eval is left unfiltered.
+#     eval is kept unfiltered; eval_filter_30s (at most 30 s) is the ASR test set.
 #
 # Prerequisites:
 #   Run data_prep/prepare_mmcsg.sh first to populate the input Kaldi data directories.
@@ -28,7 +28,7 @@ mmcsg_data_dir=/path/to/data/MMCSG
 
 # Root output directory for the segmented ASR data
 # Outputs will be written to: ${output_base_dir}/${cond}/{train,dev,eval}/
-#                          and ${output_base_dir}/${cond}/{train_filter,dev_filter}/
+#                          and ${output_base_dir}/${cond}/{train_filter,dev_filter,eval_filter_30s}/
 output_base_dir=/path/to/downstream/asr_mmcsg
 
 # Utterances outside [min_dur, max_dur] are excluded by prepare_asr_seg.py.
@@ -37,9 +37,9 @@ min_dur=0.0
 max_dur=10000.0
 
 # Recording conditions to process. Examples:
-#   MDM_BF0,2   — Beamformed from microphones 0 and 2
-#   MDM_BF0,2,3,4 — Beamformed from microphones 0, 2, 3, and 4
-for cond in MDM_BF0,2 MDM_BF0,2,3,4; do
+#   SDM1 — Single Distant Microphone (mono)
+#   MDM  — Multiple Distant Microphones (multi-channel)
+for cond in SDM1 MDM; do
   input_dir=${mmcsg_data_dir}/${cond}
   output_dir=${output_base_dir}/${cond}
 
@@ -56,4 +56,7 @@ for cond in MDM_BF0,2 MDM_BF0,2,3,4; do
   # filter_utt.py defaults: --min_dur 0.1 --max_dur 20.0
   python3 downstream/asr_ami/filter_utt.py ${output_dir}/train ${output_dir}/train_filter
   python3 downstream/asr_ami/filter_utt.py ${output_dir}/dev   ${output_dir}/dev_filter
+
+  # Test set for eval_scripts/asr_mmcsg_infer.sh: eval utterances of at most 30 s
+  python3 downstream/asr_ami/filter_utt.py ${output_dir}/eval  ${output_dir}/eval_filter_30s --max_dur 30.0
 done

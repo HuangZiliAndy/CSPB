@@ -25,7 +25,7 @@ Alimeeting_dir=/export/c02/hzili1/datasets/Alimeeting
 
 # Recording condition to extract:
 #   SDM1 — Single Distant Microphone, channel 1 (mono; uses sox remix 1)
-#   MDM8 — Multiple Distant Microphones, all 8 channels retained
+#   MDM — Multiple Distant Microphones, all 8 channels retained
 cond=SDM1
 
 # Root output directory; condition- and split-specific subdirs will be created inside

@@ -6,19 +6,20 @@ transcription/diarization files) and writes Kaldi-style data directories for the
 Eval, Test, and Train splits.
 
 Each output split directory (under {output_dir}/{cond}/{split}/) contains:
-  wav.scp   — recording ID → wav path (SDM1: extracted mono channel; MDM8: original)
+  wav.scp   — recording ID → wav path (SDM1: extracted mono channel; MDM: original)
   utt2spk   — utterance ID → speaker ID
   segments  — utterance ID, recording ID, start time, end time
   text      — utterance ID → M2MeT-normalized transcript
   reco2dur  — recording ID → duration in seconds
   uem       — full-recording UEM spans
   rttm.scp  — recording ID → per-recording RTTM file path
+  ref_rttm  — all per-recording RTTMs concatenated (reference for md-eval scoring)
 
 TextGrid tiers encode one speaker per tier; tier names end in _SPK{N}.
 Speaker IDs are extracted by stripping the leading "SPK" prefix.
 
 Usage:
-  python3 prepare_alimeeting.py <AliMeeting_dir> <output_dir> [--cond SDM1|MDM8]
+  python3 prepare_alimeeting.py <AliMeeting_dir> <output_dir> [--cond SDM1|MDM]
 """
 
 import os
@@ -68,16 +69,23 @@ def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
     text = text.replace("？", "")
     return text
 
+def write_ref_rttm(rttm_files, ref_rttm):
+    """Concatenate per-recording RTTM files into a single reference RTTM for md-eval."""
+    with open(ref_rttm, 'w') as out:
+        for rttm_file in rttm_files:
+            with open(rttm_file, 'r') as fh:
+                out.write(fh.read())
+
 def main():
     """Generate Kaldi-style data directories for all AliMeeting splits.
 
     For each split (Eval, Test, Train):
       - Reads far-field WAV files and corresponding TextGrid annotations.
-      - For SDM1 extracts channel 1 via sox remix; for MDM8 uses the original file.
+      - For SDM1 extracts channel 1 via sox remix; for MDM uses the original file.
       - Iterates over TextGrid tiers (one per speaker) to produce per-interval
         segments, writing RTTM entries as it goes.
       - Writes wav.scp, utt2spk, segments, text (M2MeT normalized), reco2dur,
-        uem, and rttm.scp.
+        uem, rttm.scp, and ref_rttm.
 
     Utterance IDs follow the pattern: {meet_name}_{speaker}_{start_cs}_{end_cs}
     where start_cs / end_cs are integer centiseconds (7-digit zero-padded).
@@ -101,6 +109,7 @@ def main():
         text_file = open("{}/text".format(output_dir), 'w')
         uem_file = open("{}/uem".format(output_dir), 'w')
         rttm_scp_file = open("{}/rttm.scp".format(output_dir), 'w')
+        rttm_files = []
 
         audio_files = [f for f in os.listdir("{}/audio_dir".format(split_dir)) if f.endswith('.wav')]
         textgrid_files = [f for f in os.listdir("{}/textgrid_dir".format(split_dir)) if f.endswith('.TextGrid')]
@@ -119,7 +128,7 @@ def main():
             duration = sf.info(audio_file).duration
             reco2dur_file.write("{} {}\n".format(meet_name, duration))
             uem_file.write("{} 1 {} {}\n".format(meet_name, 0, duration))
-            if args.cond == "MDM8":
+            if args.cond == "MDM":
                 wav_scp_file.write("{} {}\n".format(meet_name, audio_file))
             elif args.cond == "SDM1":
                 cmd = "sox {} {}/{} remix 1".format(audio_file, wav_dir, audio_file.split('/')[-1])
@@ -154,6 +163,7 @@ def main():
 
             rttm_file.close()
             rttm_scp_file.write("{} {}\n".format(meet_name, rttm_filename))
+            rttm_files.append(rttm_filename)
 
         wav_scp_file.close()
         utt2spk_file.close()
@@ -162,6 +172,7 @@ def main():
         text_file.close() 
         uem_file.close()
         rttm_scp_file.close()
+        write_ref_rttm(rttm_files, "{}/ref_rttm".format(output_dir))
     return 0
 
 if __name__ == '__main__':

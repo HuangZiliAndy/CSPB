@@ -6,37 +6,43 @@
 #SBATCH --job-name=prepare_asr_seg
 #SBATCH --time=1-00:00:00
 #SBATCH --exclude=c04,octopod
+#
+# prepare_diar_seg.sh — Prepare chunked diarization data directories for the AMI corpus.
+#
+# For each recording condition and split:
+#   1. downstream/diar_ami/prepare_diar_seg.py cuts each recording into 10 s chunks (no overlap)
+#      and writes a per-chunk RTTM (from rttm.scp).
+#   2. downstream/diar_ami/filter_seg.py keeps chunks with at most 4 speakers, writing
+#      *_filter directories that are used by train_scripts/diar_*.sh.
+#
+# Prerequisites:
+#   Run data_prep/prepare_ami.sh first to populate the input Kaldi data directories.
+#
+# Usage:
+#   bash downstream/diar_ami/prepare_diar_seg.sh
 
-export PATH="/export/c02/hzili1/tmp/home/hzili1/anaconda3/envs/csp/bin:$PATH"
+source path.sh
 
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/SDM1
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/diar_ami/SDM1
+# Root directory containing the Kaldi data directories produced by prepare_ami.sh
+# Expected structure: ${ami_data_dir}/${cond}/{dev,test,train}/
+ami_data_dir=/path/to/data/AMI
 
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/MDM
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/diar_ami/MDM
+# Root output directory for the chunked diarization data
+# Outputs will be written to: ${output_base_dir}/${cond}/{dev,test,train}/ and *_filter/
+output_base_dir=/path/to/downstream/diar_ami
 
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/MDM_BF
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/diar_ami/MDM_BF
+# Recording conditions to process. Examples:
+#   SDM1 — Single Distant Microphone (mono)
+#   MDM  — Multiple Distant Microphones (multi-channel)
+for cond in SDM1 MDM; do
+  input_dir=${ami_data_dir}/${cond}
+  output_dir=${output_base_dir}/${cond}
 
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/MDM_BF0,4
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/diar_ami/MDM_BF0,4
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/MDM_BF0,2,4,6
-#output_dir=/export/c02/hzili1/datasets/s3prl_csp/downstream/diar_ami/MDM_BF0,2,4,6
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/sep_cfg0_SoudenMVDR_2CH
-#output_dir=/export/fs05/hzili1/datasets/s3prl_csp/downstream/diar_ami/sep_cfg0_SoudenMVDR_2CH
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/sep_cfg0_SoudenMVDR_4CH
-#output_dir=/export/fs05/hzili1/datasets/s3prl_csp/downstream/diar_ami/sep_cfg0_SoudenMVDR_4CH
-
-#input_dir=/export/c02/hzili1/datasets/s3prl_csp/data/AMI/sep_cfg0_SoudenMVDR_8CH
-#output_dir=/export/fs05/hzili1/datasets/s3prl_csp/downstream/diar_ami/sep_cfg0_SoudenMVDR_8CH
-
-for split in dev test train; do
-  python3 downstream/diar_ami/prepare_diar_seg.py \
+  for split in dev test train; do
+    python3 downstream/diar_ami/prepare_diar_seg.py \
 	--normalize 1 \
 	${input_dir}/${split} \
 	${output_dir}/${split}
-  python3 downstream/diar_ami/filter_seg.py ${output_dir}/${split} ${output_dir}/${split}_filter
+    python3 downstream/diar_ami/filter_seg.py ${output_dir}/${split} ${output_dir}/${split}_filter
+  done
 done

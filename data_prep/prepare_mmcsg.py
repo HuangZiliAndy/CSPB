@@ -12,6 +12,7 @@ Each output split directory contains:
   reco2dur  — recording ID → duration in seconds
   uem       — full-recording UEM spans
   rttm.scp  — recording ID → RTTM file path (points into the source corpus)
+  ref_rttm  — all per-recording RTTMs concatenated (reference for md-eval scoring)
 
 Usage:
   python3 prepare_mmcsg.py <MMCSG_dir> <output_dir> [--cond SDM1|MDM] [--merge_dis FLOAT]
@@ -116,14 +117,22 @@ def get_segments(fname):
     seg_list_merged = merge_segments(seg_list, args.merge_dis)
     return seg_list_merged
 
+def write_ref_rttm(rttm_files, ref_rttm):
+    """Concatenate per-recording RTTM files into a single reference RTTM for md-eval."""
+    with open(ref_rttm, 'w') as out:
+        for rttm_file in rttm_files:
+            with open(rttm_file, 'r') as fh:
+                out.write(fh.read())
+
 def main():
     """Generate Kaldi-style data directories for all MMCSG splits.
 
     For each split (dev, eval, train):
       - Reads word-level TSV transcriptions and merges them into utterance segments.
       - Resamples audio to 16 kHz; for SDM1 extracts channel 1 via sox remix.
-      - Writes wav.scp, utt2spk, segments, text, reco2dur, uem, and rttm.scp.
-        rttm.scp points directly into the source corpus RTTM files (no copy).
+      - Writes wav.scp, utt2spk, segments, text, reco2dur, uem, rttm.scp, and ref_rttm.
+        rttm.scp points directly into the source corpus RTTM files (no copy);
+        ref_rttm concatenates them.
 
     Utterance IDs follow the pattern: {meet_name}_{speaker}_{start_cs}_{end_cs}
     where start_cs / end_cs are integer centiseconds (7-digit zero-padded).
@@ -145,6 +154,7 @@ def main():
         text_file = open("{}/text".format(output_dir), 'w')
         uem_file = open("{}/uem".format(output_dir), 'w')
         rttm_scp_file = open("{}/rttm.scp".format(output_dir), 'w')
+        rttm_files = []
 
         audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
         print("{} meetings in split {}".format(len(audio_files), split))
@@ -182,6 +192,7 @@ def main():
                 text_file.write("{} {}\n".format(segment_name, text))
 
             rttm_scp_file.write("{} {}\n".format(meet_name, rttm_file))
+            rttm_files.append(rttm_file)
 
         wav_scp_file.close()
         utt2spk_file.close()
@@ -190,6 +201,7 @@ def main():
         text_file.close() 
         uem_file.close()
         rttm_scp_file.close()
+        write_ref_rttm(rttm_files, "{}/ref_rttm".format(output_dir))
     return 0
 
 if __name__ == '__main__':
