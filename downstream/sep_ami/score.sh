@@ -1,6 +1,6 @@
-export PATH="/home/hzili1/anaconda3/envs/espnet_24_12_28/bin:$PATH"
-
-espnet_dir="/export/c02/hzili1/workspace/espnet"
+# ESPnet checkout; its Python env (tools/activate_python.sh) provides tokenize_text.py deps
+espnet_dir="${ESPNET_DIR:-/export/c02/hzili1/workspace/espnet}"
+. "${espnet_dir}/tools/activate_python.sh"
 export PYTHONPATH="${espnet_dir}:$PYTHONPATH"
 export PATH=$espnet_dir/tools/sctk/bin:${PATH}
 

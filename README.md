@@ -290,5 +290,46 @@ bash eval_scripts/sep_ami_infer.sh
 bash eval_scripts/sep_alm_infer.sh
 ```
 
-Set `exp_dir`, `ckpt`, and the ESPnet ASR model paths inside the script.
+Set `exp_dir`, `ckpt`, `data_dir` / `sdm1_data_dir`, `ESPNET_DIR`, and `asr_dir` inside the script.
 The script outputs per-group WER results (e.g. `test_utt_group_1spk`, `test_utt_group_2spk`).
+
+**Pretrained ASR models for decoding**
+
+The separated speech is transcribed with a pretrained ESPnet Conformer ASR model
+plus a Transformer LM. Each corpus has its own model, packaged as one zip on Google Drive:
+
+| Corpus | Zip | Contents | Script |
+|--------|-----|----------|--------|
+| AMI | [`ami_conformer_bpe100_tlm.zip`](https://drive.google.com/drive/folders/19SQwbJi-9PRmEX-QCUI4lXKA0oqd1agX) | Conformer ASR (BPE 100), Transformer LM, `feats_stats.npz`, `bpe.model` | `sep_ami_infer.sh` |
+| AliMeeting | [`alimeeting_near_conformer_tlm.zip`](https://drive.google.com/drive/folders/1AojMU0SS1U57fKT3q1XtWDffzH5n4lns) | Conformer ASR (characters, trained on near-field audio), Transformer LM, `feats_stats.npz` | `sep_alm_infer.sh` |
+
+Unzip each into its own directory (the script's `asr_dir`). Do **not** unzip into an
+existing ESPnet recipe: the zips contain `exp/` and `data/` paths that would overwrite
+models trained there. Decoding runs from inside `asr_dir`, so the relative paths in
+the model configs resolve against it.
+
+```bash
+mkdir -p asr_models && cd asr_models
+gdown --folder https://drive.google.com/drive/folders/19SQwbJi-9PRmEX-QCUI4lXKA0oqd1agX -O .
+gdown --folder https://drive.google.com/drive/folders/1AojMU0SS1U57fKT3q1XtWDffzH5n4lns -O .
+unzip ami_conformer_bpe100_tlm.zip      -d ami_conformer_bpe100_tlm
+unzip alimeeting_near_conformer_tlm.zip -d alimeeting_near_conformer_tlm
+
+# The AMI ASR config stores absolute paths from the original training machine;
+# make them relative to asr_dir
+sed -i "s#/export/c02/hzili1/workspace/espnet/egs2/ami/asr1/##g" \
+    ami_conformer_bpe100_tlm/exp/asr_train_asr_conformer_raw_en_bpe100_sp/config.yaml
+```
+
+The decoding configs are part of this repo: `downstream/sep_ami/conf/decode_transformer2.yaml`
+(from ESPnet's AMI recipe) and `downstream/sep_alimeeting/conf/decode_asr_rnn.yaml`
+(from the [M2MeT AliMeeting baseline](https://github.com/yufan-aslp/AliMeeting)).
+
+`ESPNET_DIR` points to an installed ESPnet checkout. The scripts only read from it:
+`egs2/TEMPLATE/asr1/utils/` (`split_scp.pl`, `run.pl`), `tools/activate_python.sh`
+(the ESPnet Python environment), and, for scoring (`downstream/sep_*/score.sh`),
+`espnet2/bin/tokenize_text.py` and `tools/sctk` (`sclite`).
+
+ASR decoding runs on CPU with `nj` parallel jobs. `decode_cmd` defaults to
+`utils/run.pl` (local); on a Slurm cluster set it to
+`${utils}/slurm.pl --config /path/to/slurm.conf`.
